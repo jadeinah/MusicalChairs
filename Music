@@ -308,10 +308,6 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
         isTargetingSeat = false
     end
 
-        AssignedSeat = nil
-        isTargetingSeat = false
-    end
-
     -- Remote Event Listeners
     local musicalFolder = ReplicatedStorage:WaitForChild("MusicalChairs", 5)
     if musicalFolder then
