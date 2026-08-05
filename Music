@@ -33,7 +33,7 @@ local function safeFind(parent, ...)
 end
 
 -- ==========================================
--- 🖱️ HUMANIZED VIM CLICKER & HELPERS
+-- 🖱️ HUMANIZED HELPERS
 -- ==========================================
 local function randomDelay(minMs, maxMs)
     task.wait(math.random(minMs, maxMs) / 1000)
@@ -198,13 +198,13 @@ task.spawn(function()
 end)
 
 -- ========================================================================
--- 🪑 PART 3: MUSICAL CHAIRS BOT (SMART PATHFINDING & OBSTACLE BYPASS)
+-- 🪑 PART 3: MUSICAL CHAIRS BOT (HUMANIZED & HIGH PRECISION)
 -- ========================================================================
 if getgenv().Config and getgenv().Config.AutoMusicalChairs then
 
-    -- Handshake Call
+    -- Handshake Call with randomized startup delay
     task.spawn(function()
-        task.wait(math.random(300, 650) / 100)
+        randomDelay(300, 650)
         pcall(function()
             local Event = ReplicatedStorage:WaitForChild("MusicalChairs", 5):WaitForChild("GameStartHandshake", 5)
             if Event then Event:FireServer(true) end
@@ -225,7 +225,8 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
         pcall(function()
             VirtualUser:CaptureController()
             VirtualUser:Button2Down(Vector2.new(0, 0))
-            task.wait(0.1); VirtualUser:Button2Up(Vector2.new(0, 0))
+            task.wait(0.1)
+            VirtualUser:Button2Up(Vector2.new(0, 0))
         end)
     end)
 
@@ -272,11 +273,11 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
         return bestSeat
     end
 
-    -- 🌟 SMART PATHFINDING + ELEVATED JUMP & OBSTACLE BYPASS 🌟
+    -- 🌟 SMART & HUMANIZED PATHFINDING 🌟
     local function walkToSeatUsingPathfinding(targetSeat)
         if not targetSeat or not hrp or not humanoid then return false end
 
-        -- 1. Compute Path (Pinaliit ang Radius para dumaan sa mga upuan, pillow, at table)
+        -- Precise parameters to traverse narrow obstacles (bench, tables, pillows)
         local path = PathfindingService:CreatePath({
             AgentRadius = 1.2,
             AgentHeight = 4,
@@ -301,7 +302,7 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
                 return false
             end
 
-            -- Elevated Check
+            -- Elevated seat detection (Jump when close horizontally but higher vertically)
             local horizDist = (Vector3.new(hrp.Position.X, 0, hrp.Position.Z) - Vector3.new(targetSeat.Position.X, 0, targetSeat.Position.Z)).Magnitude
             local heightDiff = targetSeat.Position.Y - hrp.Position.Y
 
@@ -326,7 +327,7 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
 
             local lastPos = hrp.Position
 
-            -- Anti-Stuck habang naglalakad sa waypoint (Auto Spam Jump kapag nabara sa lapis/cabinet)
+            -- Anti-stuck loop: Jump & retry if character is blocked by props
             while not reached and (os.clock() - timeout < 0.8) do
                 if targetSeat.Occupant ~= nil or humanoid.Sit then break end
                 
@@ -345,12 +346,12 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
             if conn then conn:Disconnect() end
         end
 
-        -- Final Reach Check
+        -- Final verification for elevated seats
         local finalHeight = targetSeat.Position.Y - hrp.Position.Y
         if finalHeight > 2 and not humanoid.Sit then
             humanoid.Jump = true
             humanoid:MoveTo(targetSeat.Position)
-            task.wait(0.4)
+            task.wait(0.35)
 
             if not humanoid.Sit then
                 targetSeat:SetAttribute("Unreachable", tick())
@@ -364,6 +365,9 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
     local function lockAndSit()
         if isEliminated or isTargetingSeat or humanoid.Sit or getgenv().IsCaptchaActive then return end
         isTargetingSeat = true
+
+        -- Simulated Human Reaction Delay (120ms to 280ms)
+        randomDelay(120, 280)
 
         while not humanoid.Sit and not isEliminated and not getgenv().IsCaptchaActive do
             clearAllSeatTags()
