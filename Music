@@ -279,43 +279,34 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
         AssignedSeat = getAndAssignClosestSeat() -- Kunin at i-tag ang bagong upuan
 
         if AssignedSeat then
-            local originalCanCollide = AssignedSeat.CanCollide
-            AssignedSeat.CanCollide = false
-
             local seatTimeout = os.clock()
             
             while AssignedSeat and not humanoid.Sit and not isEliminated and not getgenv().IsCaptchaActive and (os.clock() - seatTimeout) < 3.5 do
                 
-                -- KUNG NINAKAW NG IBA YUNG TAGGED SEAT NATIN
+                -- KUNG NINAKAW NG IBA YUNG TAGGED SEAT NATIN O KUNG NAWALA
                 if AssignedSeat.Occupant ~= nil then
-                    AssignedSeat.CanCollide = originalCanCollide 
-                    
-                    -- Hahanap ulit ng bago, at i-ta-tag ulit ng script
+                    -- Hahanap ulit ng bago
                     AssignedSeat = getAndAssignClosestSeat()
-                    
-                    if AssignedSeat then
-                        originalCanCollide = AssignedSeat.CanCollide
-                        AssignedSeat.CanCollide = false
-                    else
-                        break 
-                    end
+                    if not AssignedSeat then break end
                 end
 
                 local dist = (hrp.Position - AssignedSeat.Position).Magnitude
 
+                -- Tatakbo palapit sa upuan
                 humanoid:MoveTo(AssignedSeat.Position)
 
-                if dist <= 3.5 and hrp.AssemblyLinearVelocity.Y < 5 then
+                -- Tatalon kapag malapit na (Ginawa nating 7 para mas maaga siyang tumalon bago pa sumabit)
+                if dist <= 7 then
                     humanoid.Jump = true
                 end
 
                 RunService.Heartbeat:Wait()
             end
-
-            if AssignedSeat then
-                AssignedSeat.CanCollide = originalCanCollide
-            end
         end
+
+        AssignedSeat = nil
+        isTargetingSeat = false
+    end
 
         AssignedSeat = nil
         isTargetingSeat = false
