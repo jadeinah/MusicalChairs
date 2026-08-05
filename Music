@@ -3,7 +3,23 @@
 -- ==========================================
 if not game:IsLoaded() then game.Loaded:Wait() end
 task.wait(2)
-
+-- ==========================================
+-- ⚡ ULTRA LOW-FPS FARMING OPTIMIZER
+-- ==========================================
+pcall(function()
+    RunService:Set3dRenderingEnabled(false) -- Pinapatay ang 3D graphics (Black/White screen)
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+    
+    -- Tanggalin ang mga textures at effects para bawas lag
+    for _, v in pairs(Workspace:GetDescendants()) do
+        if v:IsA("BasePart") and not v:IsA("MeshPart") then
+            v.Material = Enum.Material.SmoothPlastic
+            v.Reflectance = 0
+        elseif v:IsA("Decal") or v:IsA("Texture") then
+            v.Transparency = 1
+        end
+    end
+end)
 -- ==========================================
 -- 🛠️ SERVICES & SHARED VARIABLES
 -- ==========================================
@@ -381,7 +397,7 @@ if getgenv().Config.AutoMusicalChairs then
                 local timeout = os.clock()
                 while (os.clock() - timeout) < 1.2 do
                     local dist = (Vector3.new(hrp.Position.X, 0, hrp.Position.Z) - Vector3.new(waypoint.Position.X, 0, waypoint.Position.Z)).Magnitude
-                    if dist < 2 or humanoid.Sit then break end
+                    if dist < 3 or humanoid.Sit then break end
                     
                     if hrp.AssemblyLinearVelocity.Magnitude < 0.5 then
                         local distToSeat = (hrp.Position - targetSeat.Position).Magnitude
