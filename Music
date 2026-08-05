@@ -70,7 +70,7 @@ end
 -- ========================================================================
 -- 🛡️ PART 1: AUTO-CAPTCHA SYSTEM (UNAHAN - INTERCEPTOR)
 -- ========================================================================
-if getgenv().Config.AutoCaptcha then
+if getgenv().Config and getgenv().Config.AutoCaptcha then
     task.spawn(function()
         local CAPTCHA_CONFIG = {
             POLL_INTERVAL = 0.2,
@@ -260,11 +260,11 @@ task.spawn(function()
 end)
 
 -- ========================================================================
--- 🪑 PART 3: MUSICAL CHAIRS BOT & HANDSHAKE
+-- 🪑 PART 3: MUSICAL CHAIRS BOT & HANDSHAKE (MIXED OPIMIZED)
 -- ========================================================================
-if getgenv().Config.AutoMusicalChairs then
+if getgenv().Config and getgenv().Config.AutoMusicalChairs then
 
-    -- Game Start Handshake Call (Humanized Delay)
+    -- Game Start Handshake Call
     task.spawn(function()
         task.wait(math.random(300, 650) / 100)
         pcall(function()
@@ -300,7 +300,7 @@ if getgenv().Config.AutoMusicalChairs then
         isEliminated = false 
     end)
 
-    -- Seat Finder
+    -- RESTORED: Random Closest Seat Finder
     local function getRandomClosestSeat()
         local availableSeats = {}
         for _, item in ipairs(Workspace:GetDescendants()) do
@@ -320,7 +320,7 @@ if getgenv().Config.AutoMusicalChairs then
         return availableSeats[math.random(1, maxChoices)].seat
     end
 
-    -- Obstacle & Ramp Mechanics
+    -- RESTORED: Obstacle & Ramp Mechanics
     local function hasOverheadObstacle(targetPart)
         local rayOrigin = targetPart.Position
         local rayDirection = Vector3.new(0, 6, 0)
@@ -355,7 +355,7 @@ if getgenv().Config.AutoMusicalChairs then
         activeRamp.Parent = Workspace
     end
 
-    -- Navigation Logic (Precise & Accurate Pathfinding)
+    -- Fast Direct Movement & Seating
     local function goToSeat()
         if isEliminated or isTargetingSeat or humanoid.Sit or getgenv().IsCaptchaActive then return end
         
@@ -363,77 +363,36 @@ if getgenv().Config.AutoMusicalChairs then
         if not targetSeat then return end
 
         isTargetingSeat = true
+        
         local isBlockedAbove = hasOverheadObstacle(targetSeat)
-        local pathTarget = targetSeat.Position
-        if isBlockedAbove then
-            pathTarget = (targetSeat.CFrame * CFrame.new(0, 0, -3)).Position 
+        if not isBlockedAbove then
+            createTemporaryRamp(targetSeat.Position)
         end
 
-        local path = PathfindingService:CreatePath({
-            AgentRadius = 1.5,
-            AgentHeight = 4.5,
-            AgentCanJump = true,
-            WaypointSpacing = 2
-        })
+        -- Direct Move Loop for Maximum Speed & Precision
+        local seatTimeout = os.clock()
+        while not humanoid.Sit and targetSeat.Occupant == nil and not isEliminated and not getgenv().IsCaptchaActive and (os.clock() - seatTimeout) < 4 do
+            local dist = (hrp.Position - targetSeat.Position).Magnitude
 
-        local success, _ = pcall(function() path:ComputeAsync(hrp.Position, pathTarget) end)
+            -- Fast Approach
+            humanoid:MoveTo(targetSeat.Position)
 
-        if success and path.Status == Enum.PathStatus.Success then
-            for _, waypoint in ipairs(path:GetWaypoints()) do
-                if targetSeat.Occupant ~= nil or humanoid.Sit or isEliminated or getgenv().IsCaptchaActive then
-                    isTargetingSeat = false
-                    return
-                end
-
-                if waypoint.Action == Enum.PathWaypointAction.Jump then
-                    local distToSeat = (hrp.Position - targetSeat.Position).Magnitude
-                    if not (isBlockedAbove and distToSeat < 8) then humanoid.Jump = true end
-                end
-
-                -- Exact & Precise movement without random jitter
-                humanoid:MoveTo(waypoint.Position)
-
-                local timeout = os.clock()
-                while (os.clock() - timeout) < 1.2 do
-                    local dist = (Vector3.new(hrp.Position.X, 0, hrp.Position.Z) - Vector3.new(waypoint.Position.X, 0, waypoint.Position.Z)).Magnitude
-                    if dist < 2 or humanoid.Sit then break end
-                    
-                    if hrp.AssemblyLinearVelocity.Magnitude < 0.5 then
-                        local distToSeat = (hrp.Position - targetSeat.Position).Magnitude
-                        if not (isBlockedAbove and distToSeat < 8) then humanoid.Jump = true end
-                    end
-                    RunService.Heartbeat:Wait()
+            -- Kapag napakalapit na sa upuan, pilitin ang pagdikit para agad umupo
+            if dist <= 4.5 then
+                if hrp.AssemblyLinearVelocity.Magnitude < 1 then
+                    humanoid.Jump = true 
                 end
             end
-        end
 
-        -- Final Approach
-        if targetSeat.Occupant == nil and not humanoid.Sit and not isEliminated and not getgenv().IsCaptchaActive then
-            if not isBlockedAbove then createTemporaryRamp(targetSeat.Position) end
-            
-            local seatTimeout = os.clock()
-            local stuckTimer = 0
-            
-            while not humanoid.Sit and targetSeat.Occupant == nil and not isEliminated and (os.clock() - seatTimeout) < 3 do
-                humanoid:MoveTo(targetSeat.Position)
-                
-                if hrp.AssemblyLinearVelocity.Magnitude < 0.5 then
-                    stuckTimer += RunService.Heartbeat:Wait()
-                    if not isBlockedAbove then
-                        humanoid.Jump = true 
-                    elseif stuckTimer > 0.5 then
-                        local wiggle = Vector3.new(math.random(-2, 2), 0, math.random(-2, 2))
-                        humanoid:MoveTo(targetSeat.Position + wiggle)
-                        stuckTimer = 0
-                    end
-                else
-                    stuckTimer = 0
-                end
-                RunService.Heartbeat:Wait()
+            -- Kapag may ibang naunang umupo sa target seat
+            if targetSeat.Occupant ~= nil then
+                break
             end
-            removeTemporaryRamp()
+
+            RunService.Heartbeat:Wait()
         end
 
+        removeTemporaryRamp()
         isTargetingSeat = false
     end
 
@@ -475,9 +434,9 @@ if getgenv().Config.AutoMusicalChairs then
         end
     end
 
-    -- Fallback Loop
+    -- Fast Check Loop
     task.spawn(function()
-        while task.wait(0.2) do
+        while task.wait(0.1) do
             if not isEliminated and not musicPlaying and humanoid and not humanoid.Sit and not isTargetingSeat and not getgenv().IsCaptchaActive then
                 local seat = getRandomClosestSeat()
                 if seat then task.spawn(goToSeat) end
@@ -485,4 +444,4 @@ if getgenv().Config.AutoMusicalChairs then
         end
     end)
 
-end -- End of AutoMusicalChairs Toggle
+end
