@@ -32,6 +32,41 @@ local function safeFind(parent, ...)
     return current
 end
 
+-- ==========================================
+-- 🖱️ HUMANIZED VIM CLICKER & HELPERS
+-- ==========================================
+local function randomDelay(minMs, maxMs)
+    task.wait(math.random(minMs, maxMs) / 1000)
+end
+
+local function SafeVIMClick(button)
+    if not button then return false end
+    
+    local screenGui = button:FindFirstAncestorWhichIsA("ScreenGui")
+    local origDisplayOrder = screenGui and screenGui.DisplayOrder or 0
+    local origZIndex = button.ZIndex
+
+    if screenGui then screenGui.DisplayOrder = 999999 end
+    button.ZIndex = 999999
+
+    local pos = button.AbsolutePosition + (button.AbsoluteSize / 2)
+    local s, inset = pcall(function() return GuiService:GetGuiInset() end)
+    local insetY = s and inset.Y or 0
+
+    VirtualInputManager:SendMouseMoveEvent(pos.X, pos.Y + insetY, game)
+    randomDelay(25, 60) 
+    
+    VirtualInputManager:SendMouseButtonEvent(pos.X, pos.Y + insetY, 0, true, game, 1)
+    randomDelay(40, 110) 
+    
+    VirtualInputManager:SendMouseButtonEvent(pos.X, pos.Y + insetY, 0, false, game, 1)
+
+    button.ZIndex = origZIndex
+    if screenGui then screenGui.DisplayOrder = origDisplayOrder end
+
+    return true
+end
+
 -- ========================================================================
 -- 🛡️ PART 1: AUTO-CAPTCHA SYSTEM (UNAHAN - INTERCEPTOR)
 -- ========================================================================
@@ -40,9 +75,7 @@ if getgenv().Config.AutoCaptcha then
         local CAPTCHA_CONFIG = {
             POLL_INTERVAL = 0.2,
             RETRY_DELAY = 1.0,
-            CLICK_COOLDOWN = 0.8,
-            MOUSEDOWN_DELAY = 0.03,
-            MOUSEUP_DELAY = 0.05
+            CLICK_COOLDOWN = 0.8
         }
 
         local Captcha = { Solving = false, Cache = {}, LastClick = 0 }
@@ -126,25 +159,7 @@ if getgenv().Config.AutoCaptcha then
             local btn = buttons:FindFirstChild(tostring(buttonNumber))
             if not btn then return false end
 
-            local primarySuccess = pcall(function()
-                if type(firesignal) == "function" then
-                    pcall(function() firesignal(btn.MouseButton1Click) end)
-                    pcall(function() firesignal(btn.Activated) end)
-                end
-            end)
-            if primarySuccess then return true end
-
-            local clickSuccess = pcall(function()
-                local pos = btn.AbsolutePosition + (btn.AbsoluteSize / 2)
-                local s, inset = pcall(function() return GuiService:GetGuiInset() end)
-                local insetY = s and inset.Y or 0
-                VirtualInputManager:SendMouseMoveEvent(pos.X, pos.Y + insetY, game)
-                task.wait(CAPTCHA_CONFIG.MOUSEDOWN_DELAY)
-                VirtualInputManager:SendMouseButtonEvent(pos.X, pos.Y + insetY, 0, true, game, 1)
-                task.wait(CAPTCHA_CONFIG.MOUSEUP_DELAY)
-                VirtualInputManager:SendMouseButtonEvent(pos.X, pos.Y + insetY, 0, false, game, 1)
-            end)
-            return clickSuccess
+            return SafeVIMClick(btn)
         end
 
         local function startSolveRoutine()
@@ -235,12 +250,8 @@ task.spawn(function()
         
         if npcDialog and frame and continueButton then
             if npcDialog.Enabled and frame.Visible and continueButton.Visible then
-                local posX = continueButton.AbsolutePosition.X + (continueButton.AbsoluteSize.X / 2)
-                local posY = continueButton.AbsolutePosition.Y + (continueButton.AbsoluteSize.Y / 2)
-                
-                VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, true, game, 1)
-                task.wait(0.05)
-                VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, false, game, 1)
+                SafeVIMClick(continueButton)
+                task.wait(math.random(300, 600) / 1000)
             end
         else
             break
@@ -253,10 +264,13 @@ end)
 -- ========================================================================
 if getgenv().Config.AutoMusicalChairs then
 
-    -- Game Start Handshake Call
-    pcall(function()
-        local Event = ReplicatedStorage:WaitForChild("MusicalChairs", 5):WaitForChild("GameStartHandshake", 5)
-        if Event then Event:FireServer(true) end
+    -- Game Start Handshake Call (Humanized Delay)
+    task.spawn(function()
+        task.wait(math.random(300, 650) / 100)
+        pcall(function()
+            local Event = ReplicatedStorage:WaitForChild("MusicalChairs", 5):WaitForChild("GameStartHandshake", 5)
+            if Event then Event:FireServer(true) end
+        end)
     end)
 
     -- Player & Character Setup
@@ -376,12 +390,21 @@ if getgenv().Config.AutoMusicalChairs then
                     if not (isBlockedAbove and distToSeat < 8) then humanoid.Jump = true end
                 end
 
-                humanoid:MoveTo(waypoint.Position)
+                -- Humanized Waypoint Jitter Offset
+                local jitterX = math.random(-15, 15) / 10
+                local jitterZ = math.random(-15, 15) / 10
+                local humanizedPosition = Vector3.new(
+                    waypoint.Position.X + jitterX,
+                    waypoint.Position.Y,
+                    waypoint.Position.Z + jitterZ
+                )
+
+                humanoid:MoveTo(humanizedPosition)
 
                 local timeout = os.clock()
                 while (os.clock() - timeout) < 1.2 do
-                    local dist = (Vector3.new(hrp.Position.X, 0, hrp.Position.Z) - Vector3.new(waypoint.Position.X, 0, waypoint.Position.Z)).Magnitude
-                    if dist < 3 or humanoid.Sit then break end
+                    local dist = (Vector3.new(hrp.Position.X, 0, hrp.Position.Z) - Vector3.new(humanizedPosition.X, 0, humanizedPosition.X)).Magnitude
+                    if dist < 2 or humanoid.Sit then break end
                     
                     if hrp.AssemblyLinearVelocity.Magnitude < 0.5 then
                         local distToSeat = (hrp.Position - targetSeat.Position).Magnitude
@@ -401,14 +424,6 @@ if getgenv().Config.AutoMusicalChairs then
             
             while not humanoid.Sit and targetSeat.Occupant == nil and not isEliminated and (os.clock() - seatTimeout) < 3 do
                 humanoid:MoveTo(targetSeat.Position)
-                
-                pcall(function()
-                    if firetouchinterest and (hrp.Position - targetSeat.Position).Magnitude < 4.5 then
-                        firetouchinterest(hrp, targetSeat, 0)
-                        task.wait()
-                        firetouchinterest(hrp, targetSeat, 1)
-                    end
-                end)
                 
                 if hrp.AssemblyLinearVelocity.Magnitude < 0.5 then
                     stuckTimer += RunService.Heartbeat:Wait()
