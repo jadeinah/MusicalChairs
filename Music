@@ -271,33 +271,63 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
         return bestSeat
     end
 
-    local function lockAndSit()
+   local function lockAndSit()
         if isEliminated or isTargetingSeat or humanoid.Sit or getgenv().IsCaptchaActive then return end
         isTargetingSeat = true
 
-        clearAllSeatTags() -- Linisin muna ang lumang tags
-        AssignedSeat = getAndAssignClosestSeat() -- Kunin at i-tag ang bagong upuan
+        clearAllSeatTags()
+        AssignedSeat = getAndAssignClosestSeat()
 
         if AssignedSeat then
             local seatTimeout = os.clock()
+            local lastPos = hrp.Position
+            local stuckCheckTimer = os.clock()
             
-            while AssignedSeat and not humanoid.Sit and not isEliminated and not getgenv().IsCaptchaActive and (os.clock() - seatTimeout) < 3.5 do
-                
-                -- KUNG NINAKAW NG IBA YUNG TAGGED SEAT NATIN O KUNG NAWALA
+            humanoid:MoveTo(AssignedSeat.Position)
+
+            while AssignedSeat and not humanoid.Sit and not isEliminated and not getgenv().IsCaptchaActive do
+                local timeElapsed = os.clock() - seatTimeout
+                if timeElapsed > 4.0 then break end -- Max time limit para sa upuan
+
+                -- Kung ninakaw ng iba ang upuan habang papunta ka
                 if AssignedSeat.Occupant ~= nil then
-                    -- Hahanap ulit ng bago
+                    clearAllSeatTags()
                     AssignedSeat = getAndAssignClosestSeat()
                     if not AssignedSeat then break end
+                    
+                    humanoid:MoveTo(AssignedSeat.Position)
+                    stuckCheckTimer = os.clock()
+                    lastPos = hrp.Position
                 end
 
                 local dist = (hrp.Position - AssignedSeat.Position).Magnitude
 
-                -- Tatakbo palapit sa upuan
-                humanoid:MoveTo(AssignedSeat.Position)
-
-                -- Tatalon kapag malapit na (Ginawa nating 7 para mas maaga siyang tumalon bago pa sumabit)
-                if dist <= 7 then
+                -- Talon kapag malapit na para maka-climb sa taas ng lamesa
+                if dist <= 8 then
                     humanoid.Jump = true
+                end
+
+                -- 🚨 ANTI-STUCK & RE-TARGETING LOGIC (NO TELEPORT) 🚨
+                if (os.clock() - stuckCheckTimer) > 0.6 then
+                    local movedDist = (hrp.Position - lastPos).Magnitude
+                    
+                    -- Kapag nabara sa pader/lamesa (nag-move nang less than 2 studs)
+                    if movedDist < 2 then
+                        humanoid.Jump = true -- Subukang tumalon
+                        humanoid:MoveTo(AssignedSeat.Position)
+
+                        -- Kung lumipas na ang 2 seconds at talagang hindi makaakyat sa nakaharang na lamesa:
+                        if timeElapsed > 2.0 then
+                            clearAllSeatTags() -- B-in-lock na ang ayaw makuha na upuan
+                            AssignedSeat = getAndAssignClosestSeat() -- Maghanap ng panibagong upuan na malinis ang daan
+                            if AssignedSeat then
+                                humanoid:MoveTo(AssignedSeat.Position)
+                            end
+                        end
+                    end
+                    
+                    lastPos = hrp.Position
+                    stuckCheckTimer = os.clock()
                 end
 
                 RunService.Heartbeat:Wait()
