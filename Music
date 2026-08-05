@@ -271,11 +271,21 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
         return bestSeat
     end
 
-   local function lockAndSit()
+   local currentRamp = nil
+
+    local function clearRamp()
+        if currentRamp then
+            currentRamp:Destroy()
+            currentRamp = nil
+        end
+    end
+
+    local function lockAndSit()
         if isEliminated or isTargetingSeat or humanoid.Sit or getgenv().IsCaptchaActive then return end
         isTargetingSeat = true
 
         clearAllSeatTags()
+        clearRamp() -- Siguraduhing walang naiwang tulay
         AssignedSeat = getAndAssignClosestSeat()
 
         if AssignedSeat then
@@ -287,11 +297,11 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
 
             while AssignedSeat and not humanoid.Sit and not isEliminated and not getgenv().IsCaptchaActive do
                 local timeElapsed = os.clock() - seatTimeout
-                if timeElapsed > 4.0 then break end -- Max time limit para sa upuan
+                if timeElapsed > 4.5 then break end -- Tumaas ng konti ang oras para may time umakyat sa ramp
 
-                -- Kung ninakaw ng iba ang upuan habang papunta ka
                 if AssignedSeat.Occupant ~= nil then
                     clearAllSeatTags()
+                    clearRamp()
                     AssignedSeat = getAndAssignClosestSeat()
                     if not AssignedSeat then break end
                     
@@ -301,29 +311,38 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
                 end
 
                 local dist = (hrp.Position - AssignedSeat.Position).Magnitude
-
-                -- Talon kapag malapit na para maka-climb sa taas ng lamesa
                 if dist <= 8 then
                     humanoid.Jump = true
                 end
 
-                -- 🚨 ANTI-STUCK & RE-TARGETING LOGIC (NO TELEPORT) 🚨
+                -- 🚨 ANTI-STUCK & INVISIBLE RAMP LOGIC 🚨
                 if (os.clock() - stuckCheckTimer) > 0.6 then
                     local movedDist = (hrp.Position - lastPos).Magnitude
                     
-                    -- Kapag nabara sa pader/lamesa (nag-move nang less than 2 studs)
+                    -- Kapag nabara sa pader/cabinet (nag-move nang less than 2 studs)
                     if movedDist < 2 then
-                        humanoid.Jump = true -- Subukang tumalon
-                        humanoid:MoveTo(AssignedSeat.Position)
-
-                        -- Kung lumipas na ang 2 seconds at talagang hindi makaakyat sa nakaharang na lamesa:
-                        if timeElapsed > 2.0 then
-                            clearAllSeatTags() -- B-in-lock na ang ayaw makuha na upuan
-                            AssignedSeat = getAndAssignClosestSeat() -- Maghanap ng panibagong upuan na malinis ang daan
-                            if AssignedSeat then
-                                humanoid:MoveTo(AssignedSeat.Position)
-                            end
+                        humanoid.Jump = true
+                        
+                        -- GUMAWA NG TULAY KUNG WALA PA AT MAY HARANG
+                        if not currentRamp and AssignedSeat then
+                            local distance = (hrp.Position - AssignedSeat.Position).Magnitude
+                            currentRamp = Instance.new("Part")
+                            currentRamp.Name = "BotRamp"
+                            currentRamp.Anchored = true
+                            currentRamp.CanCollide = true
+                            -- Naka-set sa 0.5 para makita mong gumagana. Gawin mong 1 ito mamaya para totally invisible!
+                            currentRamp.Transparency = 0.5 
+                            currentRamp.Material = Enum.Material.SmoothPlastic
+                            currentRamp.Size = Vector3.new(4, 1, distance)
+                            
+                            -- Posisyon ng tulay: Mula sa ilalim ng paa mo papunta sa upuan
+                            local startPos = hrp.Position - Vector3.new(0, 3, 0)
+                            local endPos = AssignedSeat.Position
+                            currentRamp.CFrame = CFrame.lookAt(startPos, endPos) * CFrame.new(0, 0, -distance / 2)
+                            currentRamp.Parent = Workspace
                         end
+
+                        humanoid:MoveTo(AssignedSeat.Position) -- Piliting maglakad sa tulay
                     end
                     
                     lastPos = hrp.Position
@@ -334,10 +353,10 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
             end
         end
 
+        clearRamp() -- Linisin agad ang tulay pagkaupo o kung ma-eliminate
         AssignedSeat = nil
         isTargetingSeat = false
     end
-
     -- Remote Event Listeners
     local musicalFolder = ReplicatedStorage:WaitForChild("MusicalChairs", 5)
     if musicalFolder then
