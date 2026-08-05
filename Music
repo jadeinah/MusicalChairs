@@ -15,7 +15,7 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local GuiService = game:GetService("GuiService")
 local HttpService = game:GetService("HttpService")
 local VirtualUser = game:GetService("VirtualUser")
-local PathfindingService = game:GetService("PathfindingService")
+local PathfindingService = game:GetService("PathfindingService") -- 🌟 ADDED PATHFINDING SERVICE
 
 local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 9999)
@@ -68,7 +68,7 @@ local function SafeVIMClick(button)
 end
 
 -- ========================================================================
--- 🛡️ PART 1: AUTO-CAPTCHA SYSTEM
+-- 🛡️ PART 1: AUTO-CAPTCHA SYSTEM (Kept Intact)
 -- ========================================================================
 if getgenv().Config and getgenv().Config.AutoCaptcha then
     task.spawn(function()
@@ -180,7 +180,7 @@ if getgenv().Config and getgenv().Config.AutoCaptcha then
 end
 
 -- ========================================================================
--- 🗣️ PART 2: AUTO-CLICK NPC DIALOG
+-- 🗣️ PART 2: AUTO-CLICK NPC DIALOG (Kept Intact)
 -- ========================================================================
 task.spawn(function()
     local npcDialog = PlayerGui:WaitForChild("NPCDialog", 10)
@@ -198,7 +198,7 @@ task.spawn(function()
 end)
 
 -- ========================================================================
--- 🪑 PART 3: MUSICAL CHAIRS BOT (PATHFINDING & DYNAMIC SEAT SWITCHING)
+-- 🪑 PART 3: MUSICAL CHAIRS BOT (SMART PATHFINDING)
 -- ========================================================================
 if getgenv().Config and getgenv().Config.AutoMusicalChairs then
 
@@ -219,8 +219,6 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
     local musicPlaying = false
     local isEliminated = false
     local AssignedSeat = nil 
-    local blacklistedSeats = {} -- Tagged/blocked seats na hindi mapuntahan
-    local currentRamp = nil
 
     -- Anti-AFK
     LocalPlayer.Idled:Connect(function()
@@ -237,7 +235,6 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
         hrp = character:WaitForChild("HumanoidRootPart")
         isEliminated = false 
         AssignedSeat = nil
-        blacklistedSeats = {}
     end)
 
     local function clearAllSeatTags()
@@ -248,22 +245,13 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
         end
     end
 
-    local function clearRamp()
-        if currentRamp then
-            currentRamp:Destroy()
-            currentRamp = nil
-        end
-    end
-
-    -- Paghanap ng pinakamalapit na hindi pa nakakuha at hindi blacklisted na upuan
     local function getAndAssignClosestSeat()
         local bestSeat = nil
         local shortestDist = math.huge
 
         for _, item in ipairs(Workspace:GetDescendants()) do
             if item.Name == "GameSeat" and (item:IsA("Seat") or item:IsA("VehicleSeat")) then
-                -- Siguraduhin na available, hindi pinalitan ng iba, at hindi blacklisted dahil sa pagiging blocked
-                if item.Occupant == nil and not item.Disabled and not item:GetAttribute("AssignedToBot") and not blacklistedSeats[item] then
+                if item.Occupant == nil and not item.Disabled and not item:GetAttribute("AssignedToBot") then
                     local dist = (hrp.Position - item.Position).Magnitude
                     if dist < shortestDist then
                         shortestDist = dist
@@ -280,133 +268,83 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
         return bestSeat
     end
 
-    -- Pathfinding move papunta sa target waypoint by waypoint
-    local function walkToSeatUsingPathfinding(seat)
-        if not seat then return false end
-
+    -- 🌟 SMART PATHFINDING FUNCTION 🌟
+    local function walkToSeatUsingPathfinding(targetSeat)
         local path = PathfindingService:CreatePath({
             AgentRadius = 2,
             AgentHeight = 5,
             AgentCanJump = true,
-            WaypointSpacing = 4
+            AgentCanClimb = true,
+            WaypointSpacing = 4,
+            Costs = {
+                Water = 20 -- Para mas iwasan ang tubig kung meron man
+            }
         })
 
-        local success, _ = pcall(function()
-            path:ComputeAsync(hrp.Position, seat.Position)
+        local success, errorMessage = pcall(function()
+            path:ComputeAsync(hrp.Position, targetSeat.Position)
         end)
 
-        if not success or path.Status ~= Enum.PathStatus.Success then
-            return false -- Walang mahanap na daan ang pathfinding
-        end
+        if success and path.Status == Enum.PathStatus.Success then
+            local waypoints = path:GetWaypoints()
 
-        local waypoints = path:GetWaypoints()
-        for i, waypoint in ipairs(waypoints) do
-            if humanoid.Sit or isEliminated or getgenv().IsCaptchaActive or seat.Occupant ~= nil then
-                return true
-            end
-
-            if waypoint.Action == Enum.PathWaypointAction.Jump then
-                humanoid.Jump = true
-            end
-
-            humanoid:MoveTo(waypoint.Position)
-
-            local moveTime = os.clock()
-            local lastPos = hrp.Position
-            local reachedWaypoint = false
-
-            -- Hintayin makarating sa waypoint bago magpatuloy sa susunod
-            while os.clock() - moveTime < 1.2 do
-                if (hrp.Position - waypoint.Position).Magnitude <= 3.5 or humanoid.Sit then
-                    reachedWaypoint = true
-                    break
+            for _, waypoint in ipairs(waypoints) do
+                -- 🚨 Kung may umupo na sa upuan habang naglalakad, STOP agad para humanap ng bago
+                if targetSeat.Occupant ~= nil or isEliminated or humanoid.Sit or getgenv().IsCaptchaActive then
+                    return false 
                 end
 
-                -- Stuck Check bawat waypoint
-                if (os.clock() - moveTime) > 0.5 then
-                    if (hrp.Position - lastPos).Magnitude < 1 then
-                        humanoid.Jump = true
-                        
-                        -- Gumawa ng temporary ramp kapag na-stuck
-                        if not currentRamp and AssignedSeat then
-                            local distance = (hrp.Position - AssignedSeat.Position).Magnitude
-                            currentRamp = Instance.new("Part")
-                            currentRamp.Name = "BotRamp"
-                            currentRamp.Anchored = true
-                            currentRamp.CanCollide = true
-                            currentRamp.Transparency = 0.5
-                            currentRamp.Material = Enum.Material.SmoothPlastic
-                            currentRamp.Size = Vector3.new(4, 1, distance)
-                            local startPos = hrp.Position - Vector3.new(0, 3, 0)
-                            local endPos = AssignedSeat.Position
-                            currentRamp.CFrame = CFrame.lookAt(startPos, endPos) * CFrame.new(0, 0, -distance / 2)
-                            currentRamp.Parent = Workspace
-                        end
-                        break
-                    end
+                -- Kung kailangan tumalon sa waypoint (hagdan, platform, atbp.)
+                if waypoint.Action == Enum.PathWaypointAction.Jump then
+                    humanoid.Jump = true
                 end
-                task.wait(0.05)
-            end
 
-            -- Kapag matagal na hindi nakagalaw papuntang waypoint, ibig sabihin nabara na talaga
-            if not reachedWaypoint and (hrp.Position - lastPos).Magnitude < 1 then
-                return false
+                humanoid:MoveTo(waypoint.Position)
+
+                -- Wait hanggang makarating sa susunod na waypoint (may timeout na 1 second per waypoint para di stuck)
+                local timeout = os.clock()
+                local reached = false
+                local conn
+                
+                conn = humanoid.MoveToFinished:Connect(function(wasReached)
+                    reached = true
+                    if conn then conn:Disconnect() end
+                end)
+
+                while not reached and os.clock() - timeout < 1 do
+                    if targetSeat.Occupant ~= nil then break end -- Check if stolen mid-walk
+                    RunService.Heartbeat:Wait()
+                end
+                
+                if conn then conn:Disconnect() end
             end
+            return true
+        else
+            -- 🚨 Kung walang makitang path (bobo minsan ang Roblox Pathfinding), gamitin ang fallback na direct walk
+            humanoid:MoveTo(targetSeat.Position)
+            local dist = (hrp.Position - targetSeat.Position).Magnitude
+            if dist <= 6 then humanoid.Jump = true end
+            task.wait(0.5)
+            return false
         end
-
-        return true
     end
 
     local function lockAndSit()
         if isEliminated or isTargetingSeat or humanoid.Sit or getgenv().IsCaptchaActive then return end
         isTargetingSeat = true
 
-        clearAllSeatTags()
-        clearRamp()
-        
-        AssignedSeat = getAndAssignClosestSeat()
+        while not humanoid.Sit and not isEliminated and not getgenv().IsCaptchaActive do
+            clearAllSeatTags()
+            AssignedSeat = getAndAssignClosestSeat()
+            
+            if not AssignedSeat then break end -- Walang upuan na available
 
-        local seatAttemptTime = os.clock()
-
-        while AssignedSeat and not humanoid.Sit and not isEliminated and not getgenv().IsCaptchaActive do
-            -- Kapag pinalitan o inupuan ng iba, pumili agad ng panibagong upuan
-            if AssignedSeat.Occupant ~= nil then
-                clearRamp()
-                AssignedSeat = getAndAssignClosestSeat()
-                seatAttemptTime = os.clock()
-                if not AssignedSeat then break end
-            end
-
-            -- Subukang lumakad papunta sa chair gamit ang Pathfinding
-            local pathSuccess = walkToSeatUsingPathfinding(AssignedSeat)
-
-            -- Kapag hindi makapunta sa upuan o na-stuck nang lagpas 2.5 seconds:
-            if not pathSuccess or (os.clock() - seatAttemptTime > 2.5 and not humanoid.Sit) then
-                -- 🚨 BLACKLIST SEAT & RETRY DIFFERENT WAY/CHAIR 🚨
-                blacklistedSeats[AssignedSeat] = true -- I-block ang upuan na 'to dahil may harang
-                clearRamp()
-                
-                -- Maghanap agad ng IBANG daan / IBANG upuan
-                AssignedSeat = getAndAssignClosestSeat()
-                seatAttemptTime = os.clock()
-
-                if not AssignedSeat then
-                    -- Kapag nabacklist na halos lahat, i-reset ang blacklist para makapili uli
-                    blacklistedSeats = {}
-                    AssignedSeat = getAndAssignClosestSeat()
-                end
-            end
-
-            -- Backup proximity jump kapag sobrang lapit na sa upuan
-            if AssignedSeat and (hrp.Position - AssignedSeat.Position).Magnitude <= 6 then
-                humanoid.Jump = true
-                humanoid:MoveTo(AssignedSeat.Position)
-            end
-
+            -- Gagamitin na natin ang Pathfinding imbes na simpleng MoveTo
+            walkToSeatUsingPathfinding(AssignedSeat)
+            
             RunService.Heartbeat:Wait()
         end
 
-        clearRamp()
         AssignedSeat = nil
         isTargetingSeat = false
     end
@@ -420,9 +358,6 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
                 musicPlaying = isWalking
                 if not isWalking and not isEliminated then
                     task.spawn(lockAndSit)
-                else
-                    -- Kapag tumutugtog ang musika, linisin ang blacklist
-                    blacklistedSeats = {}
                 end
             end)
         end
@@ -436,7 +371,7 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
                         isEliminated = true
                         isTargetingSeat = false
                         clearAllSeatTags()
-                        clearRamp()
+                        if AssignedSeat then AssignedSeat.CanCollide = true end
                         AssignedSeat = nil
                     end
                 end
@@ -449,8 +384,6 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
                 isEliminated = false
                 isTargetingSeat = false
                 clearAllSeatTags()
-                clearRamp()
-                blacklistedSeats = {}
                 AssignedSeat = nil
             end)
         end
@@ -463,5 +396,4 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
             end
         end
     end)
-
 end
