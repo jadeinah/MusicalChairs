@@ -11,7 +11,6 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local PathfindingService = game:GetService("PathfindingService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local GuiService = game:GetService("GuiService")
 local HttpService = game:GetService("HttpService")
@@ -68,44 +67,29 @@ local function SafeVIMClick(button)
 end
 
 -- ========================================================================
--- 🛡️ PART 1: AUTO-CAPTCHA SYSTEM (UNAHAN - INTERCEPTOR)
+-- 🛡️ PART 1: AUTO-CAPTCHA SYSTEM
 -- ========================================================================
 if getgenv().Config and getgenv().Config.AutoCaptcha then
     task.spawn(function()
-        local CAPTCHA_CONFIG = {
-            POLL_INTERVAL = 0.2,
-            RETRY_DELAY = 1.0,
-            CLICK_COOLDOWN = 0.8
-        }
-
+        local CAPTCHA_CONFIG = { POLL_INTERVAL = 0.2, RETRY_DELAY = 1.0, CLICK_COOLDOWN = 0.8 }
         local Captcha = { Solving = false, Cache = {}, LastClick = 0 }
 
         local BUTTON_HASHES = {
-            ["40d02d582d76f54881f5f000c9a3712d"] = "1",
-            ["3da8772a1380df0ea9d6e29e584d0dfa"] = "2",
-            ["2ca84bc6e12650e6a29b371030041c71"] = "3",
-            ["5abb9a3e809ddf2abec6bad6c30b9357"] = "4",
-            ["f2183de3439a29ca186a1085a254ee36"] = "5",
-            ["469569cf140da51f1b78fc640eaf6682"] = "6",
-            ["ce4d4f4d3bc8cba41ae0ba9955d052c2"] = "7",
-            ["4dcc9cb4f28e200508ace4b493e8b5b7"] = "8",
-            ["151fa826f05ded1c9903149d0c451a1c"] = "9",
-            ["fda452a0b122c2b4230fc74e5135c3fc"] = "10",
-            ["8b7bec3549554a512cdc2a993ce8f441"] = "11",
-            ["988d2aba9e47d6cafced32dbac0256ab"] = "12",
-            ["6a3723b695d9e6900f8fcc9106b64008"] = "13",
-            ["af300da49b235a2ea90d62f17fcfe8c7"] = "14",
-            ["fd6700a486a6ced004db4d1d5eb8e098"] = "15",
-            ["63cb01f205f7edfabac4e7ab1eb7dc08"] = "RESET" 
+            ["40d02d582d76f54881f5f000c9a3712d"] = "1", ["3da8772a1380df0ea9d6e29e584d0dfa"] = "2",
+            ["2ca84bc6e12650e6a29b371030041c71"] = "3", ["5abb9a3e809ddf2abec6bad6c30b9357"] = "4",
+            ["f2183de3439a29ca186a1085a254ee36"] = "5", ["469569cf140da51f1b78fc640eaf6682"] = "6",
+            ["ce4d4f4d3bc8cba41ae0ba9955d052c2"] = "7", ["4dcc9cb4f28e200508ace4b493e8b5b7"] = "8",
+            ["151fa826f05ded1c9903149d0c451a1c"] = "9", ["fda452a0b122c2b4230fc74e5135c3fc"] = "10",
+            ["8b7bec3549554a512cdc2a993ce8f441"] = "11", ["988d2aba9e47d6cafced32dbac0256ab"] = "12",
+            ["6a3723b695d9e6900f8fcc9106b64008"] = "13", ["af300da49b235a2ea90d62f17fcfe8c7"] = "14",
+            ["fd6700a486a6ced004db4d1d5eb8e098"] = "15", ["63cb01f205f7edfabac4e7ab1eb7dc08"] = "RESET" 
         }
 
         local function checkFailedToLoad()
             local topCard = PlayerGui:FindFirstChild("CardCaptchaGame")
             if not topCard then return false end
             for _, v in pairs(topCard:GetDescendants()) do
-                if v:IsA("TextLabel") and string.find(string.lower(v.Text), "failed to load") then
-                    return true
-                end
+                if v:IsA("TextLabel") and string.find(string.lower(v.Text), "failed to load") then return true end
             end
             return false
         end
@@ -127,15 +111,12 @@ if getgenv().Config and getgenv().Config.AutoCaptcha then
             if not makeHttpRequest then return nil end
             local apiUrl = "https://thumbnails.roproxy.com/v1/assets?assetIds=" .. assetId .. "&returnPolicy=PlaceHolder&size=420x420&format=Webp"
             local success, response
-
             for i = 1, 2 do
                 success, response = pcall(function() return makeHttpRequest({ Url = apiUrl, Method = "GET" }) end)
                 if success and response and response.StatusCode == 200 then break end
                 task.wait(0.5)
             end
-
             if not (success and response and response.StatusCode == 200) then return nil end
-
             local dataSuccess, decodedData = pcall(function() return HttpService:JSONDecode(response.Body) end)
             if dataSuccess and decodedData and decodedData.data and #decodedData.data > 0 then
                 local imageUrl = decodedData.data[1].imageUrl or ""
@@ -157,52 +138,30 @@ if getgenv().Config and getgenv().Config.AutoCaptcha then
             local buttons = safeFind(PlayerGui, "CardCaptchaGame", "CaptchaGame", "Bottom", "Buttons")
             if not buttons then return false end
             local btn = buttons:FindFirstChild(tostring(buttonNumber))
-            if not btn then return false end
-
-            return SafeVIMClick(btn)
+            return btn and SafeVIMClick(btn)
         end
 
         local function startSolveRoutine()
             if Captcha.Solving then return end
             Captcha.Solving = true
             getgenv().IsCaptchaActive = true
-            print("[Captcha] Detector Activated!")
-
             task.spawn(function()
                 while captchaVisible() do
-                    if checkFailedToLoad() then
-                        LocalPlayer:Kick("Failed to load captcha.")
-                        break
-                    end
-
+                    if checkFailedToLoad() then LocalPlayer:Kick("Failed to load captcha.") break end
                     local asset = getTargetId()
-                    if not asset then
-                        task.wait(CAPTCHA_CONFIG.POLL_INTERVAL)
-                        continue
-                    end
-
+                    if not asset then task.wait(CAPTCHA_CONFIG.POLL_INTERVAL) continue end
                     local now = tick()
-                    if now - Captcha.LastClick < CAPTCHA_CONFIG.CLICK_COOLDOWN then
-                        task.wait(CAPTCHA_CONFIG.POLL_INTERVAL)
-                        continue
-                    end
-
-                    local button = getCachedButton(asset)
+                    if now - Captcha.LastClick < CAPTCHA_CONFIG.CLICK_COOLDOWN then task.wait(CAPTCHA_CONFIG.POLL_INTERVAL) continue end
                     
-                    if not button or button == "RESET" then
-                        local randomBtn = tostring(math.random(1, 15))
-                        print("[Captcha] Hash missing or RESET detected. Clicking random button: " .. randomBtn)
-                        button = randomBtn
-                    end
-
+                    local button = getCachedButton(asset)
+                    if not button or button == "RESET" then button = tostring(math.random(1, 15)) end
+                    
                     clickCaptchaButton(button)
                     Captcha.LastClick = tick()
                     task.wait(CAPTCHA_CONFIG.RETRY_DELAY)
                 end
-
                 Captcha.Solving = false
                 getgenv().IsCaptchaActive = false
-                print("[Captcha] Cleared!")
             end)
         end
 
@@ -215,56 +174,34 @@ if getgenv().Config and getgenv().Config.AutoCaptcha then
                 end)
             end
         end
-
         if captchaVisible() then startSolveRoutine() end
     end)
 end
 
--- Pause Execution if Captcha is present on join
-local function isCaptchaOnScreen()
-    local captchaGame = safeFind(PlayerGui, "CardCaptchaGame", "CaptchaGame")
-    return (captchaGame and captchaGame.Visible) or getgenv().IsCaptchaActive
-end
-
-if isCaptchaOnScreen() then
-    print("[Startup] Captcha detected on join! Pausing scripts...")
-    while isCaptchaOnScreen() do task.wait(0.5) end
-    print("[Startup] Captcha cleared! Proceeding...")
-    task.wait(1)
-end
-
 -- ========================================================================
--- 🗣️ PART 2: AUTO-CLICK NPC DIALOG (BACKGROUND TASK)
+-- 🗣️ PART 2: AUTO-CLICK NPC DIALOG
 -- ========================================================================
 task.spawn(function()
     local npcDialog = PlayerGui:WaitForChild("NPCDialog", 10)
     if not npcDialog then return end
-    
     local frame = npcDialog:WaitForChild("Frame", 10)
     local continueButton = frame and frame:WaitForChild("continuebutton", 10)
 
-    print("[NPC Clicker] Started running in background.")
-
     while task.wait(0.1) do
         if getgenv().IsCaptchaActive then continue end
-        
-        if npcDialog and frame and continueButton then
-            if npcDialog.Enabled and frame.Visible and continueButton.Visible then
-                SafeVIMClick(continueButton)
-                task.wait(math.random(300, 600) / 1000)
-            end
-        else
-            break
+        if npcDialog.Enabled and frame.Visible and continueButton.Visible then
+            SafeVIMClick(continueButton)
+            task.wait(math.random(300, 600) / 1000)
         end
     end
 end)
 
 -- ========================================================================
--- 🪑 PART 3: MUSICAL CHAIRS BOT & HANDSHAKE (ACCURATE LEGIT TOUCH)
+-- 🪑 PART 3: MUSICAL CHAIRS BOT (SEAT TAGGING & ASSIGNMENT)
 -- ========================================================================
 if getgenv().Config and getgenv().Config.AutoMusicalChairs then
 
-    -- Game Start Handshake Call
+    -- Handshake Call
     task.spawn(function()
         task.wait(math.random(300, 650) / 100)
         pcall(function()
@@ -273,7 +210,6 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
         end)
     end)
 
-    -- Player & Character Setup
     local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
     local humanoid = character:WaitForChild("Humanoid")
     local hrp = character:WaitForChild("HumanoidRootPart")
@@ -281,15 +217,14 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
     local isTargetingSeat = false
     local musicPlaying = false
     local isEliminated = false
-    local activeRamp = nil
+    local AssignedSeat = nil 
 
     -- Anti-AFK
     LocalPlayer.Idled:Connect(function()
         pcall(function()
             VirtualUser:CaptureController()
             VirtualUser:Button2Down(Vector2.new(0, 0))
-            task.wait(0.1)
-            VirtualUser:Button2Up(Vector2.new(0, 0))
+            task.wait(0.1); VirtualUser:Button2Up(Vector2.new(0, 0))
         end)
     end)
 
@@ -298,110 +233,91 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
         humanoid = character:WaitForChild("Humanoid")
         hrp = character:WaitForChild("HumanoidRootPart")
         isEliminated = false 
+        AssignedSeat = nil
     end)
 
-    -- Random Closest Seat Finder
-    local function getRandomClosestSeat()
-        local availableSeats = {}
+    -- Function na nililinis lahat ng naunang tags natin sa mapa (para malinis palagi)
+    local function clearAllSeatTags()
+        for _, item in ipairs(Workspace:GetDescendants()) do
+            if item.Name == "GameSeat" and item:GetAttribute("AssignedToBot") then
+                item:SetAttribute("AssignedToBot", nil)
+            end
+        end
+    end
+
+    -- Hahanapin ang upuan na available at i-ba-block ito mula sa logic natin kung di nakuha
+    local function getAndAssignClosestSeat()
+        local bestSeat = nil
+        local shortestDist = math.huge
+
         for _, item in ipairs(Workspace:GetDescendants()) do
             if item.Name == "GameSeat" and (item:IsA("Seat") or item:IsA("VehicleSeat")) then
-                if item.Occupant == nil and not item.Disabled then
+                -- Siguraduhin na WALANG NAKAUPO at HINDI PA NATATAG NG BOT NATIN DATI (para di mag-loop sa sirang target)
+                if item.Occupant == nil and not item.Disabled and not item:GetAttribute("AssignedToBot") then
                     local dist = (hrp.Position - item.Position).Magnitude
-                    table.insert(availableSeats, {seat = item, distance = dist})
+                    if dist < shortestDist then
+                        shortestDist = dist
+                        bestSeat = item
+                    end
                 end
             end
         end
 
-        if #availableSeats == 0 then return nil end
-
-        table.sort(availableSeats, function(a, b) return a.distance < b.distance end)
-
-        local maxChoices = math.min(3, #availableSeats) 
-        return availableSeats[math.random(1, maxChoices)].seat
-    end
-
-    -- Obstacle & Ramp Mechanics
-    local function hasOverheadObstacle(targetPart)
-        local rayOrigin = targetPart.Position
-        local rayDirection = Vector3.new(0, 6, 0)
-        local raycastParams = RaycastParams.new()
-        raycastParams.FilterDescendantsInstances = {character, targetPart}
-        if activeRamp then table.insert(raycastParams.FilterDescendantsInstances, activeRamp) end
-        raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-
-        return Workspace:Raycast(rayOrigin, rayDirection, raycastParams) ~= nil
-    end
-
-    local function removeTemporaryRamp()
-        if activeRamp then
-            activeRamp:Destroy()
-            activeRamp = nil
+        if bestSeat then
+            -- I-tag o I-assign sa bot ang upuan (Safe way imbes na Name change)
+            bestSeat:SetAttribute("AssignedToBot", true)
         end
+
+        return bestSeat
     end
 
-    local function createTemporaryRamp(targetPos)
-        removeTemporaryRamp()
-        local p1 = hrp.Position - Vector3.new(0, 3, 0)
-        local p2 = targetPos + Vector3.new(0, 0.5, 0)
-        local distance = (p1 - p2).Magnitude
-
-        activeRamp = Instance.new("Part")
-        activeRamp.Name = "BotStairs"
-        activeRamp.Anchored = true
-        activeRamp.CanCollide = true
-        activeRamp.Transparency = 1 
-        activeRamp.Size = Vector3.new(4, 1, distance)
-        activeRamp.CFrame = CFrame.lookAt(p1:Lerp(p2, 0.5), p2)
-        activeRamp.Parent = Workspace
-    end
-
-    -- Ultra Accurate Movement & Natural Sitting
-    local function goToSeat()
+    local function lockAndSit()
         if isEliminated or isTargetingSeat or humanoid.Sit or getgenv().IsCaptchaActive then return end
-        
-        local targetSeat = getRandomClosestSeat()
-        if not targetSeat then return end
-
         isTargetingSeat = true
-        
-        local isBlockedAbove = hasOverheadObstacle(targetSeat)
-        if not isBlockedAbove then
-            createTemporaryRamp(targetSeat.Position)
-        end
 
-        -- Temporarily disable collision of the target seat on client side
-        -- Allows character to walk directly into the center of the seat without getting blocked by outer hitboxes
-        local originalCanCollide = targetSeat.CanCollide
-        targetSeat.CanCollide = false
+        clearAllSeatTags() -- Linisin muna ang lumang tags
+        AssignedSeat = getAndAssignClosestSeat() -- Kunin at i-tag ang bagong upuan
 
-        local seatTimeout = os.clock()
-        while not humanoid.Sit and targetSeat.Occupant == nil and not isEliminated and not getgenv().IsCaptchaActive and (os.clock() - seatTimeout) < 3.5 do
-            local dist = (hrp.Position - targetSeat.Position).Magnitude
+        if AssignedSeat then
+            local originalCanCollide = AssignedSeat.CanCollide
+            AssignedSeat.CanCollide = false
 
-            -- Instant Face-Target Alignment (Eliminates curved paths and delays)
-            hrp.CFrame = CFrame.lookAt(hrp.Position, Vector3.new(targetSeat.Position.X, hrp.Position.Y, targetSeat.Position.Z))
+            local seatTimeout = os.clock()
+            
+            while AssignedSeat and not humanoid.Sit and not isEliminated and not getgenv().IsCaptchaActive and (os.clock() - seatTimeout) < 3.5 do
+                
+                -- KUNG NINAKAW NG IBA YUNG TAGGED SEAT NATIN
+                if AssignedSeat.Occupant ~= nil then
+                    AssignedSeat.CanCollide = originalCanCollide 
+                    
+                    -- Hahanap ulit ng bago, at i-ta-tag ulit ng script
+                    AssignedSeat = getAndAssignClosestSeat()
+                    
+                    if AssignedSeat then
+                        originalCanCollide = AssignedSeat.CanCollide
+                        AssignedSeat.CanCollide = false
+                    else
+                        break 
+                    end
+                end
 
-            -- Direct MoveTo
-            humanoid:MoveTo(targetSeat.Position)
+                local dist = (hrp.Position - AssignedSeat.Position).Magnitude
 
-            -- Natural Physical Touch Trigger (< 3.5 studs)
-            -- Position character directly on top of the seat surface natively
-            if dist <= 3.5 then
-                hrp.CFrame = CFrame.new(targetSeat.Position + Vector3.new(0, 1.2, 0))
-                humanoid.Jump = true
+                humanoid:MoveTo(AssignedSeat.Position)
+
+                if dist <= 3.5 and hrp.AssemblyLinearVelocity.Y < 5 then
+                    humanoid.Jump = true
+                end
+
+                RunService.Heartbeat:Wait()
             end
 
-            -- Cancel if someone sat first
-            if targetSeat.Occupant ~= nil then
-                break
+            if AssignedSeat then
+                AssignedSeat.CanCollide = originalCanCollide
             end
-
-            RunService.Heartbeat:Wait()
         end
 
-        -- Restore CanCollide state
-        if targetSeat then targetSeat.CanCollide = originalCanCollide end
-        removeTemporaryRamp()
+        AssignedSeat = nil
         isTargetingSeat = false
     end
 
@@ -413,7 +329,7 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
             walkAnimEvent.OnClientEvent:Connect(function(isWalking)
                 musicPlaying = isWalking
                 if not isWalking and not isEliminated then
-                    task.spawn(goToSeat)
+                    task.spawn(lockAndSit)
                 end
             end)
         end
@@ -426,8 +342,9 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
                     if string.find(lowerText, string.lower(LocalPlayer.Name)) or string.find(lowerText, string.lower(LocalPlayer.DisplayName)) then
                         isEliminated = true
                         isTargetingSeat = false
-                        removeTemporaryRamp() 
-                        if humanoid then humanoid:MoveTo(hrp.Position) end
+                        clearAllSeatTags()
+                        if AssignedSeat then AssignedSeat.CanCollide = true end
+                        AssignedSeat = nil
                     end
                 end
             end)
@@ -438,17 +355,16 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
             resetSeatsEvent.OnClientEvent:Connect(function()
                 isEliminated = false
                 isTargetingSeat = false
-                removeTemporaryRamp()
+                clearAllSeatTags()
+                AssignedSeat = nil
             end)
         end
     end
 
-    -- Fast Check Loop
     task.spawn(function()
-        while task.wait(0.1) do
+        while task.wait(0.05) do
             if not isEliminated and not musicPlaying and humanoid and not humanoid.Sit and not isTargetingSeat and not getgenv().IsCaptchaActive then
-                local seat = getRandomClosestSeat()
-                if seat then task.spawn(goToSeat) end
+                task.spawn(lockAndSit)
             end
         end
     end)
