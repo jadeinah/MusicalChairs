@@ -355,7 +355,7 @@ if getgenv().Config.AutoMusicalChairs then
         activeRamp.Parent = Workspace
     end
 
-    -- Navigation Logic
+    -- Navigation Logic (Precise & Accurate Pathfinding)
     local function goToSeat()
         if isEliminated or isTargetingSeat or humanoid.Sit or getgenv().IsCaptchaActive then return end
         
@@ -390,20 +390,12 @@ if getgenv().Config.AutoMusicalChairs then
                     if not (isBlockedAbove and distToSeat < 8) then humanoid.Jump = true end
                 end
 
-                -- Humanized Waypoint Jitter Offset
-                local jitterX = math.random(-15, 15) / 10
-                local jitterZ = math.random(-15, 15) / 10
-                local humanizedPosition = Vector3.new(
-                    waypoint.Position.X + jitterX,
-                    waypoint.Position.Y,
-                    waypoint.Position.Z + jitterZ
-                )
-
-                humanoid:MoveTo(humanizedPosition)
+                -- Exact & Precise movement without random jitter
+                humanoid:MoveTo(waypoint.Position)
 
                 local timeout = os.clock()
                 while (os.clock() - timeout) < 1.2 do
-                    local dist = (Vector3.new(hrp.Position.X, 0, hrp.Position.Z) - Vector3.new(humanizedPosition.X, 0, humanizedPosition.X)).Magnitude
+                    local dist = (Vector3.new(hrp.Position.X, 0, hrp.Position.Z) - Vector3.new(waypoint.Position.X, 0, waypoint.Position.Z)).Magnitude
                     if dist < 2 or humanoid.Sit then break end
                     
                     if hrp.AssemblyLinearVelocity.Magnitude < 0.5 then
