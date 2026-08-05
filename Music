@@ -260,7 +260,7 @@ task.spawn(function()
 end)
 
 -- ========================================================================
--- 🪑 PART 3: MUSICAL CHAIRS BOT & HANDSHAKE (MIXED OPIMIZED)
+-- 🪑 PART 3: MUSICAL CHAIRS BOT & HANDSHAKE (ACCURATE LEGIT TOUCH)
 -- ========================================================================
 if getgenv().Config and getgenv().Config.AutoMusicalChairs then
 
@@ -300,7 +300,7 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
         isEliminated = false 
     end)
 
-    -- RESTORED: Random Closest Seat Finder
+    -- Random Closest Seat Finder
     local function getRandomClosestSeat()
         local availableSeats = {}
         for _, item in ipairs(Workspace:GetDescendants()) do
@@ -320,7 +320,7 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
         return availableSeats[math.random(1, maxChoices)].seat
     end
 
-    -- RESTORED: Obstacle & Ramp Mechanics
+    -- Obstacle & Ramp Mechanics
     local function hasOverheadObstacle(targetPart)
         local rayOrigin = targetPart.Position
         local rayDirection = Vector3.new(0, 6, 0)
@@ -355,7 +355,7 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
         activeRamp.Parent = Workspace
     end
 
-    -- Fast Direct Movement & Seating
+    -- Ultra Accurate Movement & Natural Sitting
     local function goToSeat()
         if isEliminated or isTargetingSeat or humanoid.Sit or getgenv().IsCaptchaActive then return end
         
@@ -369,22 +369,29 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
             createTemporaryRamp(targetSeat.Position)
         end
 
-        -- Direct Move Loop for Maximum Speed & Precision
+        -- Temporarily disable collision of the target seat on client side
+        -- Allows character to walk directly into the center of the seat without getting blocked by outer hitboxes
+        local originalCanCollide = targetSeat.CanCollide
+        targetSeat.CanCollide = false
+
         local seatTimeout = os.clock()
-        while not humanoid.Sit and targetSeat.Occupant == nil and not isEliminated and not getgenv().IsCaptchaActive and (os.clock() - seatTimeout) < 4 do
+        while not humanoid.Sit and targetSeat.Occupant == nil and not isEliminated and not getgenv().IsCaptchaActive and (os.clock() - seatTimeout) < 3.5 do
             local dist = (hrp.Position - targetSeat.Position).Magnitude
 
-            -- Fast Approach
+            -- Instant Face-Target Alignment (Eliminates curved paths and delays)
+            hrp.CFrame = CFrame.lookAt(hrp.Position, Vector3.new(targetSeat.Position.X, hrp.Position.Y, targetSeat.Position.Z))
+
+            -- Direct MoveTo
             humanoid:MoveTo(targetSeat.Position)
 
-            -- Kapag napakalapit na sa upuan, pilitin ang pagdikit para agad umupo
-            if dist <= 4.5 then
-                if hrp.AssemblyLinearVelocity.Magnitude < 1 then
-                    humanoid.Jump = true 
-                end
+            -- Natural Physical Touch Trigger (< 3.5 studs)
+            -- Position character directly on top of the seat surface natively
+            if dist <= 3.5 then
+                hrp.CFrame = CFrame.new(targetSeat.Position + Vector3.new(0, 1.2, 0))
+                humanoid.Jump = true
             end
 
-            -- Kapag may ibang naunang umupo sa target seat
+            -- Cancel if someone sat first
             if targetSeat.Occupant ~= nil then
                 break
             end
@@ -392,6 +399,8 @@ if getgenv().Config and getgenv().Config.AutoMusicalChairs then
             RunService.Heartbeat:Wait()
         end
 
+        -- Restore CanCollide state
+        if targetSeat then targetSeat.CanCollide = originalCanCollide end
         removeTemporaryRamp()
         isTargetingSeat = false
     end
